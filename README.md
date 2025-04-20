@@ -1,6 +1,6 @@
 venv\Scripts\activate
 set FLASK_APP=app.py
-flask run
+
 flask run --host=0.0.0.0 --port=5000
 
 flask db init
@@ -9,6 +9,5 @@ flask db upgrade
 
 
 
-flask db downgrade  # Миграци буцах
-flask db upgrade    # Шинээр миграци хийх
-"# flask" 
+flask db downgrade  
+flask db upgrade    
