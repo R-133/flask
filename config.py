@@ -4,3 +4,4 @@ class Config:
     JWT_SECRET_KEY = 'your_jwt_secret_key'
     UPLOAD_FOLDER = 'uploads/'
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+    BASE_URL = 'http://192.168.1.4:5000/'

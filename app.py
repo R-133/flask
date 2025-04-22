@@ -1,34 +1,25 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
-from flask_jwt_extended import JWTManager, create_access_token 
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_migrate import Migrate
 from flask_cors import CORS
-from flask_jwt_extended import jwt_required
+from flask_socketio import SocketIO
+from flask import send_from_directory
 
+from config import Config
+from detection import video_feed
+from models import db, User, Farm, Camera, UserToken
 
-from werkzeug.utils import secure_filename
-
-
-# Flask тохиргоо
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'  # SQLite өгөгдлийн сан
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['JWT_SECRET_KEY'] = 'your_jwt_secret_key'  # JWT нууц түлхүүр
+app.config.from_object(Config)
 
-# CORS тохиргоо (бүх хандалтыг зөвшөөрнө)
-CORS(app)
-
-# Өгөгдлийн сан, bcrypt, JWT тохиргоо
-db = SQLAlchemy(app)
+db.init_app(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 migrate = Migrate(app, db)
-
-from models import User
-from models import Farm, Camera
-
-
+CORS(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -104,7 +95,6 @@ def update_user_info():
 
     data = request.get_json()
 
-    # Шинэ утгуудыг set хийх
     user.username = data.get('username', user.username)
     user.phone = data.get('phone', user.phone)
     user.email = data.get('email', user.email)
@@ -147,7 +137,7 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 @app.route('/add_farm', methods=['POST'])
-@jwt_required()  # JWT токен шаардлагатай
+@jwt_required()  
 def add_farm():
     try:
         data = request.get_json()
@@ -184,7 +174,7 @@ def get_farmlands():
     }), 200
 
 @app.route('/add_camera', methods=['POST'])
-@jwt_required()  # Заавал JWT токен авах
+@jwt_required() 
 def add_camera():
     try:
         data = request.get_json()
@@ -192,7 +182,6 @@ def add_camera():
         if not data.get('camera_name') or not data.get('camera_url') or not data.get('farm_id'):
             return jsonify({'message': 'Camera name, URL болон Farm ID шаардлагатай!'}), 400
 
-        # Камера үүсгэх
         camera = Camera(
             camera_name=data['camera_name'],
             farm_id=data['farm_id'],
@@ -223,8 +212,41 @@ def get_cameras():
         'cameras': [camera.to_dict() for camera in cameras]
     }), 200
 
+@app.route('/video_feed/<int:camera_id>')
+def video_feed_route(camera_id):
+    camera = Camera.query.get(camera_id)
+    if not camera:
+        return "Камер олдсонгүй!", 404
+    
+    video_path = camera.camera_url 
+    return video_feed(video_path, camera_id=camera_id, app=app)
 
 
+@app.route('/static/detected/<filename>')
+def uploaded_file(filename):
+    return send_from_directory('static/detected', filename)
+
+@app.route('/save_token', methods=['POST'])
+@jwt_required()
+def save_token():
+    data = request.get_json()
+    token = data.get('token')
+    user_id = get_jwt_identity()  
+
+    if not token:
+        return jsonify({'message': 'Token is required'}), 400
+
+    existing_token = UserToken.query.filter_by(user_id=user_id).first()
+
+    if existing_token:
+        existing_token.token = token
+    else:
+        new_token = UserToken(user_id=user_id, token=token)
+        db.session.add(new_token)
+
+    db.session.commit()
+
+    return jsonify({'message': 'Token saved successfully'}), 200
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    socketio.run(app, host='0.0.0.0', port=5000)

@@ -1,5 +1,5 @@
-from datetime import datetime
-from app import db
+from flask_sqlalchemy import SQLAlchemy
+db = SQLAlchemy()
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -18,7 +18,7 @@ class Farm(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    image_url = db.Column(db.String(255), nullable=True)  # Зураг хадгалах талбар
+    image_url = db.Column(db.String(255), nullable=True) 
 
     owner = db.relationship('User', back_populates='farms')
     cameras = db.relationship('Camera', backref='farm', lazy=True)
@@ -26,13 +26,12 @@ class Farm(db.Model):
     def __repr__(self):
         return f"Farm('{self.name}', '{self.image_url}')"
     
-    # Фермийн мэдээллийг dict хэлбэрт хувиргах
     def to_dict(self):
         return {
             'id': self.id,
             'name': self.name,
             'image_url': self.image_url,
-            'cameras': [camera.to_dict() for camera in self.cameras]  # Камерын мэдээллийг ч бас dict болгон хувиргах
+            'cameras': [camera.to_dict() for camera in self.cameras] 
         }
 
 
@@ -48,14 +47,13 @@ class Camera(db.Model):
     def __repr__(self):
         return f"Camera('{self.camera_name}', '{self.camera_url}')"
 
-    # Камераны мэдээллийг dict хэлбэрт хувиргах
     def to_dict(self):
         return {
             'id': self.id,
             'camera_name': self.camera_name,
             'farm_id': self.farm_id,
             'camera_url': self.camera_url,
-            'notifications': [notification.to_dict() for notification in self.notifications]  # Мэдэгдлүүдийн мэдээллийг авах
+            'notifications': [notification.to_dict() for notification in self.notifications]  
         }
 
 
@@ -72,5 +70,14 @@ class Notification(db.Model):
         return {
             'id': self.id,
             'message': self.message,
-            'timestamp': self.timestamp.isoformat()  # Тохиромжтой хэлбэрт хувиргах
+            'timestamp': self.timestamp.isoformat() 
         }
+
+
+class UserToken(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False, unique=True)  
+    token = db.Column(db.String(255), nullable=False)
+
+    def __repr__(self):
+        return f'<UserToken {self.user_id}: {self.token}>'
