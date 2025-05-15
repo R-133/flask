@@ -6,10 +6,11 @@ from flask_migrate import Migrate
 from flask_cors import CORS
 from flask_socketio import SocketIO
 from flask import send_from_directory
-
+from datetime import datetime
 from config import Config
 from detection import video_feed
-from models import db, User, Farm, Camera, UserToken
+from models import db, User, Farm, Camera, UserToken, Notification
+import json
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -146,9 +147,14 @@ def add_farm():
 
         user_id = get_jwt_identity()  
 
+        # Location-г JSON string болгож хадгалах
+        location_str = json.dumps(data['location'])
+
+
         farm = Farm(
             name=data['name'],
             user_id=user_id,
+            location=location_str,
             image_url=data.get('image_url')
         )
 
@@ -182,10 +188,15 @@ def add_camera():
         if not data.get('camera_name') or not data.get('camera_url') or not data.get('farm_id'):
             return jsonify({'message': 'Camera name, URL болон Farm ID шаардлагатай!'}), 400
 
+        location = data.get('location')
+        direction = data.get('direction')
+
         camera = Camera(
             camera_name=data['camera_name'],
             farm_id=data['farm_id'],
-            camera_url=data['camera_url']
+            camera_url=data['camera_url'],
+            location=location,
+            direction=direction
         )
 
         db.session.add(camera)
@@ -198,6 +209,7 @@ def add_camera():
 
     except Exception as e:
         return jsonify({'message': str(e)}), 500
+
 
 @app.route('/cameras', methods=['GET'])
 @jwt_required()
@@ -247,6 +259,64 @@ def save_token():
     db.session.commit()
 
     return jsonify({'message': 'Token saved successfully'}), 200
+
+@app.route('/save_notification', methods=['POST'])
+@jwt_required()
+def save_notification():
+    data = request.json
+    message = data.get('message')
+    camera_id = data.get('camera_id')
+    image_url = data.get('image_url')
+
+    if not message or not camera_id:
+        return jsonify({'error': 'message and camera_id are required'}), 400
+
+    notification = Notification(
+        message=message,
+        timestamp=datetime.utcnow(),
+        camera_id=camera_id,
+        image_url=image_url
+    )
+
+    db.session.add(notification)
+    db.session.commit()
+
+    return jsonify({'success': True, 'notification': notification.to_dict()}), 201
+
+@app.route('/get_notifications', methods=['GET'])
+@jwt_required()
+def get_notifications():
+    user_id = get_jwt_identity()
+
+    # Тухайн хэрэглэгчийн бүх notification-уудыг авна
+    notifications = Notification.query \
+        .join(Camera) \
+        .join(Farm) \
+        .filter(Farm.user_id == user_id) \
+        .order_by(Notification.timestamp.desc()) \
+        .all()
+
+    result = []
+
+    for n in notifications:
+        result.append({
+            'id': n.id,
+            'message': n.message,
+            'timestamp': n.timestamp.isoformat(),
+            'image_url': n.image_url,
+            'camera': {
+                'id': n.camera.id,
+                'name': n.camera.camera_name if n.camera else 'Тодорхойгүй',
+                'farmland': {
+                    'id': n.camera.farm_id if n.camera and n.camera.farm else None,
+                    'name': n.camera.farm.name if n.camera and n.camera.farm else 'Тодорхойгүй'
+                }
+            },
+            'farmland': n.camera.farm.name if n.camera and n.camera.farm else 'Тодорхойгүй'
+        })
+
+    return jsonify(result)
+
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000)
