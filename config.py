@@ -5,4 +5,4 @@ class Config:
     UPLOAD_FOLDER = 'uploads/'
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
     BASE_URL = 'http://192.168.1.4:5000/'
-    # BASE_URL = 'http://172.20.10.2:5000/'
+    # BASE_URL = 'http://172.16.150.130:5000/'

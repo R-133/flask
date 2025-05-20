@@ -1,102 +1,3 @@
-# import time
-# import cv2
-# from flask import Response
-# from ultralytics import YOLO
-# from notification import send_push_notification
-# from filter_module import get_tokens_by_camera, get_farmland_and_camera_name
-# from config import Config
-
-# model = YOLO('yolov8n.pt')
-
-# # Notification delay хадгалах
-# last_notification_time = {}
-
-# # Англи -> Монгол амьтдын нэрс
-# label_translation = {
-#     'sheep': 'Хонь',
-#     'cow': 'Үхэр',
-#     'horse': 'Адуу',
-# }
-
-# # Stream болон илрүүлэлт хийх гол функц
-# def video_feed(video_path, camera_id, app):
-#     cap = cv2.VideoCapture(video_path)
-#     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-
-#     detect_every_n_frames = 1
-#     animals_detected_mn = set()
-
-#     def generate():
-#         frame_count = 0  # local хувьсагч
-#         with app.app_context():
-#             while True:
-#                 animals_detected_mn.clear()
-#                 ret, frame = cap.read()
-
-#                 if not ret:
-#                     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-#                     continue
-
-#                 frame_count += 1
-#                 animals_detected = []
-
-#                 if frame_count % detect_every_n_frames == 0:
-#                     results = model(frame, verbose=False)
-#                     detections = results[0].boxes
-#                     names = model.names
-
-#                     for detection in detections:
-#                         cls_id = int(detection.cls[0])
-#                         label = names[cls_id]
-
-#                         if label in label_translation:
-#                             x1, y1, x2, y2 = map(int, detection.xyxy[0])
-#                             conf = detection.conf[0]
-#                             cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-#                             text = f'{label} {conf:.2f}'
-#                             cv2.putText(frame, text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
-#                             animals_detected.append(label)
-#                             animals_detected_mn.add(label_translation[label])
-
-#                 current_time = time.time()
-#                 image_url = None
-
-#                 if animals_detected and (
-#                     camera_id not in last_notification_time or current_time - last_notification_time[camera_id] > 240
-#                 ):
-#                     image_filename = f'static/detected/{camera_id}_{int(current_time)}.jpg'
-#                     cv2.imwrite(image_filename, frame)
-#                     image_url = f'{Config.BASE_URL}{image_filename}'
-
-#                     tokens = get_tokens_by_camera(camera_id)
-#                     farmland_name, camera_name = get_farmland_and_camera_name(camera_id)
-#                     farmland_name = farmland_name or f'Farm {camera_id}'
-#                     camera_name = camera_name or f'Camera {camera_id}'
-
-#                     for expo_token in tokens:
-#                         send_push_notification(
-#                             expo_token,
-#                             'Амьтан илэрлээ!',
-#                             f"Илэрсэн: {', '.join(animals_detected_mn)}",
-#                             image_url=image_url,
-#                             farmland=farmland_name,
-#                             camera=camera_name,
-#                             animal=', '.join(animals_detected_mn)
-#                         )
-
-#                     last_notification_time[camera_id] = current_time
-
-#                 # Frame-г JPEG болгож stream-д бэлтгэх
-#                 encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 70]  # чанар тохируулсан
-#                 ret, jpeg = cv2.imencode('.jpg', frame, encode_param)
-#                 if not ret:
-#                     break
-
-#                 yield (b'--frame\r\n'
-#                        b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n\r\n')
-
-#     return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
 import time
 import cv2
 from flask import Response
@@ -107,7 +8,7 @@ from config import Config
 import subprocess
 
 # YOLO модел ачааллах
-model = YOLO('yolov8n.pt')
+model = YOLO('yolo12n.pt')
 model.to('cuda')  # GPU ашиглах
 print("YOLO загвар ажиллаж буй төхөөрөмж:", model.device)
 # Сүүлийн мэдэгдэл илгээсэн хугацаа хадгалах
@@ -152,12 +53,12 @@ def video_feed(video_path, camera_id, app):
     if not cap or not cap.isOpened():
         return "Видео нээж чадсангүй!", 500
 
-    cap.set(cv2.CAP_PROP_BUFFERSIZE, 3)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     cap.set(cv2.CAP_PROP_FPS, 30) 
     detect_every_n_frames = 1
 
     def generate():
-        frame_count = 0
+        frame_count = 5
         with app.app_context():
             try:
                 while True:

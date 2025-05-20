@@ -9,7 +9,12 @@ class User(db.Model):
     phone = db.Column(db.String(8),unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
 
-    farms = db.relationship('Farm', back_populates='owner', lazy=True)
+    farms = db.relationship(
+    'Farm',
+    back_populates='owner',
+    cascade='all, delete-orphan',
+    lazy=True
+    )
 
     def __repr__(self):
         return f"User('{self.username}', '{self.email}')"
@@ -23,7 +28,12 @@ class Farm(db.Model):
     location = db.Column(db.Text, nullable=True)
 
     owner = db.relationship('User', back_populates='farms')
-    cameras = db.relationship('Camera', backref='farm', lazy=True)
+    cameras = db.relationship(
+        'Camera',
+        backref='farm',
+        cascade='all, delete-orphan',
+        lazy=True
+    )
 
     def __repr__(self):
         return f"Farm('{self.name}', '{self.image_url}')"
@@ -46,7 +56,12 @@ class Camera(db.Model):
     camera_url = db.Column(db.String(200), nullable=False)
     location = db.Column(db.String(100), nullable=True)  
     direction = db.Column(db.String(20), nullable=True)   
-    notifications = db.relationship('Notification', back_populates='camera', lazy=True)
+    notifications = db.relationship(
+        'Notification',
+        back_populates='camera',
+        cascade='all, delete-orphan',
+        lazy=True
+    )
 
     def __repr__(self):
         return f"Camera('{self.camera_name}', '{self.camera_url}')"

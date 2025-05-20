@@ -5,4 +5,5 @@ venv/
 assets/
 static/detected
 yolov8n.pt
+yolo11n.pt
 /cookies.txt

@@ -4,13 +4,17 @@ from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_migrate import Migrate
 from flask_cors import CORS
-from flask_socketio import SocketIO
+# from flask_socketio import SocketIO
 from flask import send_from_directory
 from datetime import datetime
 from config import Config
 from detection import video_feed
 from models import db, User, Farm, Camera, UserToken, Notification
 import json
+from sqlalchemy import event
+from sqlalchemy.engine import Engine
+import sqlite3
+
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -20,7 +24,13 @@ bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 migrate = Migrate(app, db)
 CORS(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+# socketio = SocketIO(app, cors_allowed_origins="*")
+@event.listens_for(Engine, "connect")
+def set_sqlite_pragma(dbapi_connection, connection_record):
+    if isinstance(dbapi_connection, sqlite3.Connection):  # sqlite connection бол
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON;")  # foreign key-үүд идэвхжүүлнэ
+        cursor.close()
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -179,6 +189,36 @@ def get_farmlands():
         'farmlands': [f.to_dict() for f in farmlands]
     }), 200
 
+@app.route('/farmlands/<int:id>', methods=['PUT'])
+@jwt_required()
+def update_farm(id):
+    try:
+        user_id = get_jwt_identity()
+        farm = Farm.query.filter_by(id=id, user_id=user_id).first()
+
+        if not farm:
+            return jsonify({'message': 'Farm not found'}), 404
+
+        data = request.get_json()
+
+        if 'name' in data:
+            farm.name = data['name']
+        if 'location' in data:
+            farm.location = json.dumps(data['location'])  # Update JSON string
+        if 'image_url' in data:
+            farm.image_url = data['image_url']
+
+        db.session.commit()
+
+        return jsonify({
+            'message': 'Farm updated successfully',
+            'farm': farm.to_dict()
+        }), 200
+
+    except Exception as e:
+        return jsonify({'message': str(e)}), 500
+
+
 @app.route('/add_camera', methods=['POST'])
 @jwt_required() 
 def add_camera():
@@ -223,6 +263,27 @@ def get_cameras():
     return jsonify({
         'cameras': [camera.to_dict() for camera in cameras]
     }), 200
+@app.route('/cameras/<int:camera_id>', methods=['DELETE'])
+@jwt_required()
+def delete_camera(camera_id):
+    try:
+        user_id = get_jwt_identity()
+        camera = Camera.query.get(camera_id)
+
+        if not camera:
+            return jsonify({'message': 'Камер олдсонгүй'}), 404
+        # Камерийн farm нь тухайн хэрэглэгчид харъяалагдаж байгааг шалгах
+        farm = Farm.query.get(camera.farm_id)
+        if not farm or str(farm.user_id) != str(user_id):
+            return jsonify({'message': 'Танд энэ камерт хандах эрх байхгүй'}), 403
+        
+        db.session.delete(camera)
+        db.session.commit()
+        
+        return jsonify({'message': 'Камер амжилттай устгагдлаа'}), 200
+    
+    except Exception as e:
+        return jsonify({'message': str(e)}), 500
 
 @app.route('/video_feed/<int:camera_id>')
 def video_feed_route(camera_id):
@@ -319,4 +380,5 @@ def get_notifications():
 
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000)
+    # socketio.run(app, host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=5000)
