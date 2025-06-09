@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from flask_mail import Mail, Message
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_migrate import Migrate
@@ -14,11 +15,12 @@ import json
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 import sqlite3
+import random
 
 
 app = Flask(__name__)
 app.config.from_object(Config)
-
+mail = Mail(app)
 db.init_app(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
@@ -378,6 +380,50 @@ def get_notifications():
 
     return jsonify(result)
 
+def generate_verification_code():
+    return str(random.randint(100000, 999999))
+
+def send_verification_email(to_email, code):
+    msg = Message('Имэйл баталгаажуулах код', recipients=[to_email])
+    msg.body = f'Таны баталгаажуулах код: {code}'
+    mail.send(msg)
+
+verification_codes = {}
+@app.route('/send-code', methods=['POST'])
+def send_code():
+    data = request.get_json()
+    email = data.get('email')
+
+    if not email:
+        return jsonify({'message': 'Имэйл шаардлагатай!'}), 400
+
+    code = generate_verification_code()
+    try:
+        send_verification_email(email, code)
+
+        # Кодыг түр хадгалах
+        verification_codes[email] = code
+
+        return jsonify({'message': 'Баталгаажуулах код амжилттай илгээгдлээ.'})
+    except Exception as e:
+        return jsonify({'message': 'Код илгээхэд алдаа гарлаа.', 'error': str(e)}), 500
+
+@app.route('/verify-code', methods=['POST'])
+def verify_code():
+    data = request.get_json()
+    email = data.get('email')
+    code = data.get('code')
+
+    if not email or not code:
+        return jsonify({'message': 'Имэйл болон код шаардлагатай!'}), 400
+
+    if verification_codes.get(email) != code:
+        return jsonify({'message': 'Код буруу байна.'}), 400
+
+    # Код зөв бол хадгалах сангаас устгана (нэг удаагийн баталгаажуулалт)
+    verification_codes.pop(email, None)
+
+    return jsonify({'message': 'Код зөв байна!'})
 
 if __name__ == '__main__':
     # socketio.run(app, host='0.0.0.0', port=5000)

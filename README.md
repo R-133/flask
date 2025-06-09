@@ -10,3 +10,6 @@ flask db upgrade
 
 flask db downgrade  
 flask db upgrade    
+
+
+sqlite3 site.db

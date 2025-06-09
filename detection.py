@@ -122,7 +122,7 @@ def video_feed(video_path, camera_id, app):
                         last_notification_time[camera_id] = current_time
 
                     # Frame-г JPEG болгож stream руу дамжуулах
-                    ret, jpeg = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+                    ret, jpeg = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 50])
                     if not ret:
                         break
 
